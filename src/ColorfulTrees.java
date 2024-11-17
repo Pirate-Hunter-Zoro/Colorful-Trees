@@ -35,6 +35,7 @@ public class ColorfulTrees {
     static class Node {
         int color;
         ArrayList<Edge> edges = new ArrayList<>();
+        HashMap<Integer, Integer> colorCounts = new HashMap<>();
 
         public Node(int c) {
             this.color = c;
@@ -71,7 +72,7 @@ public class ColorfulTrees {
             cache[i] = -1;
         }
 
-        solve(0, 0, -1, nodes, cache, totalCount);
+        solve(0, -1, nodes, cache, totalCount);
 
         for (int i = 0; i < cache.length; i++) {
             System.out.println(cache[i]);
@@ -79,40 +80,51 @@ public class ColorfulTrees {
 
     }
 
-    static Map<Integer, Integer> solve(int child, int parent, int edgeIdx, Node[] nodes, int[] cache,
+    static void solve(int current, int parent, Node[] nodes, int[] cache,
             Map<Integer, Integer> totalCount) {
-        Map<Integer, Integer> union = null;
-        for (Edge e : nodes[child].edges) {
-            if (e.to == parent)
-                continue;
-            Map<Integer, Integer> tmp = solve(e.to, e.from, e.idx, nodes, cache, totalCount);
-            if (union == null) {
-                union = tmp;
-                cache[edgeIdx] = cache[e.idx];
-                continue;
-            }
-            if (union.size() < tmp.size()) {
-                Map<Integer, Integer> swap = union;
-                union = tmp;
-                tmp = swap;
-            }
-            cache[edgeIdx] += cache[e.idx];
-            for (int k : tmp.keySet()) {
-                // add (k, v) to union
-                // compute changes to solution
-                if (union.containsKey(k)) {
-                    // remove double counting
-                    cache[edgeIdx] -= 2 * union.get(k) * tmp.get(k);
-                    union.put(k, union.get(k) + tmp.get(k));
-                } else {
-                    union.put(k, tmp.get(k));
+        // For the current node, we need to calculate the counts of each colors in its
+        // subtree
+        int largestCount = -1; // We'll need to keep count of the largest hash map - all smaller ones will be
+                               // merged into this one and apply to this current node
+        HashMap<Integer, Integer> largestMap = null;
+        for (Edge edge : nodes[current].edges) {
+            int child = (edge.from == current) ? edge.to : edge.from;
+            if (child != parent) {
+                solve(child, current, nodes, cache, totalCount);
+                // Look at the color counts associated with this child
+                HashMap<Integer, Integer> childSubtreeColorMap = nodes[child].colorCounts;
+                if (childSubtreeColorMap.size() > largestCount) {
+                    largestCount = childSubtreeColorMap.size();
+                    largestMap = childSubtreeColorMap;
+                }
+                for (int color : childSubtreeColorMap.keySet()) {
+                    int colorSubtreeCount = childSubtreeColorMap.get(color);
+                    int totalColorCount = totalCount.get(color);
+                    cache[edge.idx] += (totalColorCount - colorSubtreeCount) * colorSubtreeCount;
                 }
             }
         }
-        
-        // Base case
-
-        return union;
+        if (largestMap != null) {
+            for (Edge edge : nodes[current].edges) {
+                int child = (edge.from == current) ? edge.to : edge.from;
+                if (child != parent) {
+                    HashMap<Integer, Integer> childMap = nodes[child].colorCounts;
+                    if (childMap != largestMap) {
+                        for (int color : childMap.keySet()) {
+                            if (!largestMap.containsKey(color)) {
+                                largestMap.put(color, 0);
+                            }
+                            largestMap.put(color, largestMap.get(color) + childMap.get(color));
+                        }
+                    }
+                }
+            }
+            nodes[current].colorCounts = largestMap;
+        }
+        if (!nodes[current].colorCounts.containsKey(nodes[current].color)) {
+            nodes[current].colorCounts.put(nodes[current].color, 0);
+        }
+        nodes[current].colorCounts.put(nodes[current].color, nodes[current].colorCounts.get(nodes[current].color) + 1);
     }
 
 }
